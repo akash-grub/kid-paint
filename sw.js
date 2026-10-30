@@ -1,5 +1,5 @@
 // Network first so updates show up; falls back to the cached copy when offline.
-const CACHE = 'kidpaint-v1';
+const CACHE = 'kidpaint-v2';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
