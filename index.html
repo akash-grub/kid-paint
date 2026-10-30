@@ -206,7 +206,6 @@
     b.addEventListener('click', () => {
       tool = id;
       toolsEl.querySelectorAll('.tool').forEach(t => t.classList.toggle('on', t === b));
-      if (isShape(id)) toast('Pinch with two fingers to make a ' + label.toLowerCase());
     });
     toolsEl.appendChild(b);
   });
