@@ -385,15 +385,20 @@
   // ---------- Touch input ----------
   // Draw/erase/fill use one finger. Shapes follow one finger as a drag, or two fingers as a
   // pinch: the fingers mark opposite corners and spreading them makes the shape bigger.
-  let active = null, second = null, last = null, start = null, base = null, mode = null;
-  let pts = new Map(), pinchDone = false;
+  // The triangle takes a third finger, and then each finger is one corner.
+  let active = null, last = null, start = null, base = null, mode = null;
+  let extra = [], pts = new Map(), pinchDone = false;
   const isShape = t => t === 'square' || t === 'rect' || t === 'circle' || t === 'tri';
+  const maxExtra = t => t === 'tri' ? 2 : 1;
 
   function drawShape() {
     px.set(base);
     const r = SIZES[sizeIdx], c = rgba(COLORS[colorIdx]);
-    const a = pts.get(active), b = second !== null ? pts.get(second) : null;
-    if (!b) {
+    const a = pts.get(active), b = extra.length ? pts.get(extra[0]) : null;
+    if (extra.length === 2) {
+      const d = pts.get(extra[1]);
+      line(a[0], a[1], b[0], b[1], r, c); line(b[0], b[1], d[0], d[1], r, c); line(d[0], d[1], a[0], a[1], r, c);
+    } else if (!b) {
       shape(mode, start[0], start[1], a[0], a[1], r, c);
     } else if (mode === 'square' || mode === 'circle') {
       const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
@@ -418,17 +423,17 @@
   cv.addEventListener('pointerdown', e => {
     e.preventDefault();
     if (active !== null) {
-      // A second finger turns a shape into a pinch; otherwise extra fingers and palms are ignored.
-      if (isShape(mode) && second === null && !pinchDone) {
-        second = e.pointerId;
+      // More fingers turn a shape into a pinch; otherwise extra fingers and palms are ignored.
+      if (isShape(mode) && extra.length < maxExtra(mode) && !pinchDone) {
+        extra.push(e.pointerId);
         try { cv.setPointerCapture(e.pointerId); } catch (err) {}
-        pts.set(second, pos(e));
+        pts.set(e.pointerId, pos(e));
         drawShape();
       }
       return;
     }
     active = e.pointerId;
-    second = null;
+    extra = [];
     pinchDone = false;
     try { cv.setPointerCapture(e.pointerId); } catch (err) {}
     const p = pos(e);
@@ -450,7 +455,7 @@
   });
 
   cv.addEventListener('pointermove', e => {
-    if (e.pointerId !== active && e.pointerId !== second) return;
+    if (e.pointerId !== active && !extra.includes(e.pointerId)) return;
     e.preventDefault();
     if (mode === 'fill') return;
     if (isShape(mode)) {
@@ -474,15 +479,13 @@
   });
 
   function end(e) {
-    if (e.pointerId === second) {
-      // First finger off a pinch locks the shape, so the other finger can't nudge it.
+    if (extra.includes(e.pointerId)) {
+      // First finger off a pinch locks the shape, so the other fingers can't nudge it.
       pinchDone = true;
-      second = null;
       return;
     }
     if (e.pointerId !== active) return;
-    if (second !== null) pinchDone = true;
-    active = null; second = null; base = null; mode = null;
+    active = null; extra = []; base = null; mode = null;
     scheduleSave();
   }
   cv.addEventListener('pointerup', end);
