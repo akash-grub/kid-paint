@@ -18,6 +18,7 @@
     --lo: #808080;
     --dk: #404040;
     --navy: #000080;
+    --neon: #39ff14;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -38,6 +39,7 @@
     touch-action: none;
   }
   button.bev:active, button.bev.on { border-color: var(--dk) var(--hi) var(--hi) var(--dk); background: #dcdcdc; }
+  button.tool.on, .size.on { background: var(--neon); outline: 3px solid #000; outline-offset: 0; }
 
   .win {
     position: absolute; inset: 0;
@@ -72,7 +74,7 @@
   .tool svg { width: 36px; height: 36px; }
   .sizes { display: flex; justify-content: space-between; padding: 4px; gap: 4px; background: var(--face); }
   .size { flex: 1; height: 54px; display: flex; align-items: center; justify-content: center; background: var(--face); border: 3px solid transparent; }
-  .size.on { border-color: var(--dk) var(--hi) var(--hi) var(--dk); background: #dcdcdc; }
+  .size.on { border-color: var(--dk) var(--hi) var(--hi) var(--dk); }
   .size span { display: block; border-radius: 50%; background: #000; }
 
   .area { flex: 1; min-width: 0; background: var(--lo); position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
@@ -83,7 +85,7 @@
   .cur div { position: absolute; left: 9px; top: 9px; width: 36px; height: 36px; border: 2px solid #000; }
   .pal { display: grid; grid-template-columns: repeat(8, 52px); gap: 6px; }
   .sw { width: 52px; height: 52px; border: 3px solid; border-color: var(--dk) var(--hi) var(--hi) var(--dk); }
-  .sw.on { outline: 3px solid #000; outline-offset: 2px; }
+  .sw.on { box-shadow: 0 0 0 3px #000, 0 0 0 7px var(--neon); }
 
   .toast {
     position: absolute; left: 50%; top: 40%; transform: translateX(-50%);
@@ -149,7 +151,7 @@
       <div class="body">
         <input class="sunk" id="nameInput" maxlength="40" autocomplete="off" autocorrect="off" enterkeyhint="done" placeholder="My rainbow house">
         <div class="row">
-          <button type="submit" class="bev">OK</button>
+          <button type="button" class="bev" id="nameOk">OK</button>
           <button type="button" class="bev" id="nameCancel">Cancel</button>
         </div>
       </div>
@@ -196,6 +198,22 @@
   }
 
   // ---------- UI ----------
+  // iPad Safari drops a "click" if the finger slides a little or another finger is resting on
+  // the screen, which kids do all the time. So pickers select on touch-down, and action buttons
+  // fire on lift anywhere near the button. A click with detail 0 is a keyboard press.
+  function press(el, fn) {
+    el.addEventListener('pointerdown', e => { e.preventDefault(); fn(); });
+    el.addEventListener('click', e => { if (e.detail === 0) fn(); });
+  }
+  function tap(el, fn) {
+    el.addEventListener('pointerdown', e => e.preventDefault());
+    el.addEventListener('pointerup', e => {
+      const r = el.getBoundingClientRect(), m = 30;
+      if (e.clientX > r.left - m && e.clientX < r.right + m && e.clientY > r.top - m && e.clientY < r.bottom + m) fn();
+    });
+    el.addEventListener('click', e => { if (e.detail === 0) fn(); });
+  }
+
   const toolsEl = $('tools');
   TOOLS.forEach(([id, label]) => {
     const b = document.createElement('button');
@@ -203,7 +221,7 @@
     b.dataset.tool = id;
     b.setAttribute('aria-label', label);
     b.innerHTML = `<svg viewBox="0 0 32 32" aria-hidden="true">${ICON[id]}</svg>${label}`;
-    b.addEventListener('click', () => {
+    press(b, () => {
       tool = id;
       toolsEl.querySelectorAll('.tool').forEach(t => t.classList.toggle('on', t === b));
     });
@@ -217,7 +235,7 @@
     b.setAttribute('aria-label', ['Thin', 'Medium', 'Thick'][i] + ' brush');
     const d = 6 + i * 9;
     b.innerHTML = `<span style="width:${d}px;height:${d}px"></span>`;
-    b.addEventListener('click', () => {
+    press(b, () => {
       sizeIdx = i;
       sizesEl.querySelectorAll('.size').forEach(s => s.classList.toggle('on', s === b));
     });
@@ -230,7 +248,7 @@
     b.className = 'sw' + (i === colorIdx ? ' on' : '');
     b.style.background = c;
     b.setAttribute('aria-label', 'Color ' + c);
-    b.addEventListener('click', () => {
+    press(b, () => {
       colorIdx = i;
       curEl.style.background = c;
       palEl.querySelectorAll('.sw').forEach(s => s.classList.toggle('on', s === b));
@@ -352,7 +370,7 @@
     if (undoStack.length > UNDO_LIMIT) undoStack.shift();
   }
 
-  $('undo').addEventListener('click', () => {
+  tap($('undo'), () => {
     const prev = undoStack.pop();
     if (!prev) return;
     px.set(prev);
@@ -360,7 +378,7 @@
     scheduleSave();
   });
 
-  $('new').addEventListener('click', () => {
+  tap($('new'), () => {
     const [w, h] = areaSize();
     if (w === W && h === H) {
       pushUndo();
@@ -504,7 +522,7 @@
     toast.timer = setTimeout(() => { t.style.display = 'none'; }, 1800);
   }
 
-  $('save').addEventListener('click', () => {
+  tap($('save'), () => {
     flush();
     // Build the file synchronously so Safari still counts the tap when the share sheet opens.
     const url = cv.toDataURL('image/png');
@@ -529,7 +547,7 @@
     $('shot').src = url;
     $('modal').style.display = 'flex';
   }
-  $('closeModal').addEventListener('click', () => { $('modal').style.display = 'none'; });
+  tap($('closeModal'), () => { $('modal').style.display = 'none'; });
 
   // ---------- Picture name (tap the title) ----------
   let picName = '';
@@ -543,18 +561,19 @@
   }
   setName(picName);
 
-  $('docname').addEventListener('click', () => {
+  tap($('docname'), () => {
     $('nameInput').value = picName;
     $('nameModal').style.display = 'flex';
     $('nameInput').focus();
   });
-  $('nameForm').addEventListener('submit', e => {
-    e.preventDefault();
+  function acceptName() {
     setName($('nameInput').value);
     $('nameInput').blur();
     $('nameModal').style.display = 'none';
-  });
-  $('nameCancel').addEventListener('click', () => {
+  }
+  tap($('nameOk'), acceptName);
+  $('nameForm').addEventListener('submit', e => { e.preventDefault(); acceptName(); });
+  tap($('nameCancel'), () => {
     $('nameInput').blur();
     $('nameModal').style.display = 'none';
   });
